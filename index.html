@@ -385,6 +385,9 @@
         <div class="tool-item" onclick="switchTool('tiktok')">
             <i class="fas fa-video"></i> TikTok Downloader
         </div>
+        <div class="tool-item" onclick="switchTool('animeschedule')">
+    <i class="fas fa-tv"></i> Anime Schedule
+</div>
         <div class="tool-item" onclick="switchTool('pinterest')">
             <i class="fab fa-pinterest"></i> Pinterest Downloader
         </div>
@@ -416,7 +419,25 @@
         </div>
 
         <div class="content">
-            
+            <div class="tool-content" id="animescheduleTool">
+    <div class="form-group">
+        <h3 style="color:var(--neon); margin-bottom:20px;">
+            <i class="fas fa-calendar-alt"></i> Jadwal Anime Mingguan
+        </h3>
+        <p style="color:#ccc; margin-bottom:20px;">Lihat jadwal tayang anime berdasarkan hari (data dari otakudesu.best)</p>
+    </div>
+
+    <div class="loading" id="loadingAnimeSchedule">
+        <div class="spinner"></div>
+        <p>Mengambil jadwal anime...</p>
+    </div>
+
+    <button class="btn-spam" onclick="loadAnimeSchedule()" id="animeScheduleBtn">
+        <i class="fas fa-sync-alt"></i> MUAT JADWAL ANIME
+    </button>
+
+    <div id="animeScheduleContainer" style="margin-top:25px;"></div>
+</div>
             <div class="tool-content active" id="spammerTool">
                 <div class="form-group">
                     <label for="botToken"><i class="fas fa-robot"></i> Bot Token:</label>
@@ -645,8 +666,154 @@
     </div>
 
     <script>
+    let animeScheduleData = null;
+
+async function loadAnimeSchedule() {
+    document.getElementById('loadingAnimeSchedule').style.display = 'block';
+    document.getElementById('animeScheduleBtn').disabled = true;
+    document.getElementById('animeScheduleContainer').innerHTML = '';
     
-   async function downloadYtmp3() {
+    try {
+        const apiUrl = 'https://www.sankavollerei.com/anime/schedule';
+        const response = await fetch(apiUrl);
+        const result = await response.json();
+        
+        if(result.status === 'success' && result.data) {
+            animeScheduleData = result.data;
+            displayAnimeSchedule();
+            showResult('success', '✅ Jadwal anime berhasil dimuat!');
+        } else {
+            showResult('error', '❌ Gagal memuat jadwal anime');
+        }
+    } catch(error) {
+        showResult('error', '❌ Error: ' + error.message);
+    } finally {
+        document.getElementById('loadingAnimeSchedule').style.display = 'none';
+        document.getElementById('animeScheduleBtn').disabled = false;
+    }
+}
+
+function displayAnimeSchedule() {
+    if(!animeScheduleData) return;
+    
+    const container = document.getElementById('animeScheduleContainer');
+    let html = '';
+    
+    const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu', 'Random'];
+    
+    html += `<div style="display:flex; overflow-x:auto; gap:5px; margin-bottom:20px; padding-bottom:10px;" id="dayTabsContainer">`;
+    
+    days.forEach(day => {
+        const hasData = animeScheduleData.some(item => item.day === day);
+        if(hasData) {
+            html += `
+                <button onclick="showAnimeDay('${day}')" id="tab-${day}" 
+                        style="padding:10px 15px; background:rgba(138,43,226,0.2); border:none; border-radius:8px; 
+                               color:var(--neon); cursor:pointer; white-space:nowrap; border:1px solid rgba(138,43,226,0.3);">
+                    ${day}
+                </button>
+            `;
+        }
+    });
+    
+    html += `</div>`;
+    html += `<div id="animeDayContent"></div>`;
+    container.innerHTML = html;
+    
+    const firstDay = animeScheduleData[0]?.day || 'Senin';
+    showAnimeDay(firstDay);
+}
+
+function showAnimeDay(day) {
+    if(!animeScheduleData) return;
+    
+    const dayData = animeScheduleData.find(item => item.day === day);
+    if(!dayData) return;
+    
+    const tabsContainer = document.getElementById('dayTabsContainer');
+    if(tabsContainer) {
+        const buttons = tabsContainer.querySelectorAll('button');
+        buttons.forEach(btn => {
+            btn.style.background = 'rgba(138,43,226,0.2)';
+            btn.style.borderColor = 'rgba(138,43,226,0.3)';
+        });
+        
+        const activeTab = document.getElementById(`tab-${day}`);
+        if(activeTab) {
+            activeTab.style.background = 'rgba(138,43,226,0.5)';
+            activeTab.style.borderColor = 'var(--neon)';
+        }
+    }
+    
+    let html = `
+        <div style="background:rgba(0,0,0,0.7); padding:20px; border-radius:15px; border:1px solid rgba(138,43,226,0.3);">
+            <h3 style="color:var(--neon); margin-bottom:20px; display:flex; align-items:center; gap:10px;">
+                <i class="fas fa-calendar-day"></i> ${day}
+                <span style="font-size:14px; color:#ccc; margin-left:auto;">${dayData.anime_list.length} Anime</span>
+            </h3>
+            
+            <div class="anime-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:15px;">
+    `;
+    
+    dayData.anime_list.forEach(anime => {
+        html += `
+            <div class="anime-card" 
+                 style="background:rgba(0,0,0,0.5); border-radius:12px; overflow:hidden; border:1px solid rgba(138,43,226,0.2); transition:all 0.3s ease;">
+                <div style="height:150px; overflow:hidden;">
+                    <img src="${anime.poster}" alt="${anime.title}" 
+                         style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s ease;">
+                </div>
+                <div style="padding:15px;">
+                    <h4 style="color:var(--neon); font-size:14px; margin-bottom:10px; height:40px; overflow:hidden;">
+                        ${anime.title}
+                    </h4>
+                    <div style="display:flex; gap:8px; margin-top:15px;">
+                        <button class="btn-token" onclick="openAnimeLink('${anime.slug}')" 
+                                style="flex:1; background:rgba(138,43,226,0.3); font-size:12px; padding:8px;">
+                            <i class="fas fa-external-link-alt"></i> Info
+                        </button>
+                        <button class="btn-token" onclick="copyAnimeTitle('${anime.title.replace(/'/g, "\\'")}')" 
+                                style="flex:1; background:rgba(23,162,184,0.3); font-size:12px; padding:8px;">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `
+            </div>
+            
+            <div style="margin-top:20px; padding:15px; background:rgba(138,43,226,0.1); border-radius:10px;">
+                <p style="color:#ccc; margin:0; font-size:14px;">
+                    <i class="fas fa-info-circle"></i> Data dari otakudesu.best • Total: ${dayData.anime_list.length} anime tayang di ${day}
+                </p>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('animeDayContent').innerHTML = html;
+    
+    document.querySelectorAll('.anime-card').forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-5px)';
+            this.style.boxShadow = '0 10px 20px rgba(138,43,226,0.3)';
+            this.style.borderColor = 'var(--neon)';
+            const img = this.querySelector('img');
+            if(img) img.style.transform = 'scale(1.1)';
+        });
+        
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = 'none';
+            this.style.borderColor = 'rgba(138,43,226,0.2)';
+            const img = this.querySelector('img');
+            if(img) img.style.transform = 'scale(1)';
+        });
+    });
+}
+    async function downloadYtmp3() {
     const youtubeUrl = document.getElementById('youtubeUrl').value.trim();
     
     if(!youtubeUrl) {
